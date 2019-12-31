@@ -19,19 +19,18 @@ install(FILES ${APOPHENIC_HEADERS} DESTINATION include/apophenic)
 if(BUILD_TESTS)
 	enable_testing()
 
-	set(GTEST_LIB gtest)
 	if(MSVC)
-		set(GMOCK_LIB gmock)
+		set(GTEST_LIBS optimized gtest optimized gmock debug gtestd debug gmockd)
 	else(MSVC)
-		set(GMOCK_LIB gmock pthread)
+		set(GTEST_LIBS optimized gtest optimized gmock debug gtestd debug gmockd pthread)
 	endif(MSVC)
 
 	add_executable(test_mvc tests/test_mvc.cxx)
-	target_link_libraries(test_mvc ${GTEST_LIB} ${GMOCK_LIB})
+	target_link_libraries(test_mvc ${GTEST_LIBS})
 	add_test(NAME mvc COMMAND test_mvc)
 
 	add_executable(test_automaton tests/test_automaton.cxx)
-	target_link_libraries(test_automaton ${GTEST_LIB} ${GMOCK_LIB})
+	target_link_libraries(test_automaton ${GTEST_LIBS})
 	add_test(NAME automaton COMMAND test_automaton)
 
 endif(BUILD_TESTS)
