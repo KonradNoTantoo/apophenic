@@ -7,7 +7,7 @@ include_directories(./)
 
 set(CMAKE_CXX_STANDARD 14)
 
-SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -pedantic -Wall -Wextra -Werror")
+set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -pedantic -Wall -Wextra -Werror")
 
 set(APOPHENIC_HEADERS
 	apophenic/MVC.hxx
@@ -17,17 +17,21 @@ set(APOPHENIC_HEADERS
 install(FILES ${APOPHENIC_HEADERS} DESTINATION include/apophenic)
 
 if(BUILD_TESTS)
-	include(CTest)
+	enable_testing()
 
 	set(GTEST_LIB gtest)
-	set(GMOCK_LIB gmock pthread)
+	if(MSVC)
+		set(GMOCK_LIB gmock)
+	else(MSVC)
+		set(GMOCK_LIB gmock pthread)
+	endif(MSVC)
 
 	add_executable(test_mvc tests/test_mvc.cxx)
 	target_link_libraries(test_mvc ${GTEST_LIB} ${GMOCK_LIB})
-	add_test(mvc test_mvc)
+	add_test(NAME mvc COMMAND test_mvc)
 
 	add_executable(test_automaton tests/test_automaton.cxx)
 	target_link_libraries(test_automaton ${GTEST_LIB} ${GMOCK_LIB})
-	add_test(automaton test_automaton)
+	add_test(NAME automaton COMMAND test_automaton)
 
 endif(BUILD_TESTS)
