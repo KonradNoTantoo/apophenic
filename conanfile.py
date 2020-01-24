@@ -5,7 +5,7 @@ import os
 class ApophenicConan(ConanFile):
 	name = "apophenic"
 	version = "master"
-	license = "WTFPL2"
+	license = "WTFPL"
 	author = "konrad.no.tantoo"
 	url = "https://github.com/KonradNoTantoo/apophenic"
 	folder_name = "{}-{}".format(name, version)
@@ -28,24 +28,17 @@ class ApophenicConan(ConanFile):
 		if self.options.tests:
 			self.build_requires("gtest/1.8.1")
 
-	def source(self):
-		if self.options.tests:
-			tools.replace_in_file("{}/CMakeLists.txt".format(self.sources_path),
-								  "project (apophenic)",
-								  '''project (apophenic)
-include (${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup ()''')
-
 	def build(self): # this is not building a library, just tests
 		if self.options.tests:
 			cmake = CMake(self)
+			cmake.definitions["WITH_CONAN"] = "ON"
 			cmake.definitions["BUILD_TESTS"] = "ON"
 			cmake.configure(source_folder=self.sources_path)
 			cmake.build()
 			cmake.test()
 
 	def package(self):
-		self.copy("*.hxx")
+		self.copy("include/apophenic/*.hxx")
 
 	def package_id(self):
 		self.info.header_only()

@@ -86,6 +86,6 @@ private:
 
 
 
-};
+}
 
 #endif // STATE_AUTOMATON_HXX
