@@ -26,7 +26,7 @@ class ApophenicConan(ConanFile):
 
 	def build_requirements(self):
 		if self.options.tests:
-			self.build_requires("gtest/1.8.1")
+			self.build_requires("gtest/1.11.0")
 
 	def build(self): # this is not building a library, just tests
 		if self.options.tests:
@@ -38,7 +38,7 @@ class ApophenicConan(ConanFile):
 			cmake.test()
 
 	def package(self):
-		self.copy("include/apophenic/*.hxx")
+		self.copy("apophenic/*.hxx", dst="include", src=os.path.join(self.folder_name, "sources"), keep_path=True)
 
 	def package_id(self):
 		self.info.header_only()
