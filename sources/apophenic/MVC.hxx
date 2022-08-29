@@ -1,6 +1,7 @@
 #ifndef MVC_HXX
 #define MVC_HXX
 
+#include <typeinfo>
 #include <utility>
 
 
@@ -26,11 +27,15 @@ public:
 	template<class TOther, typename TContext>
 	void connect(Spoke<TOther> & spoke, TContext context)
 	{
-		if (self()->is_connection_allowed(spoke, context))
+		if (	self()->is_connection_allowed(spoke, context)
+			&&	false == spoke.is_connected()
+			)
 		{
-			if ( spoke.connection_cb(*this, context, true) )
+			self()->enact_connection(spoke, context);
+
+			if ( false == spoke.connection_cb(*this, context, true) )
 			{
-				self()->enact_connection(spoke, context);
+				self()->enact_disconnection(spoke);
 			}
 		}
 		else
@@ -42,12 +47,12 @@ public:
 	template<class TOther>
 	void disconnect(Spoke<TOther> & spoke)
 	{
-		if (self()->is_connected(spoke))
+		if (	self()->is_connected(spoke)
+			&&	spoke.is_connected()
+			)
 		{
-			if ( spoke.disconnection_cb(*this, true) )
-			{
-				self()->enact_disconnection(spoke);
-			}
+			self()->enact_disconnection(spoke);
+			spoke.disconnection_cb(*this, true);
 		}
 		else
 		{
@@ -70,33 +75,38 @@ public:
 	Spoke() : _hub(nullptr) {}
 
 	template<class TOther, typename TContext>
-	void connect(Hub<TOther> & h, TContext context) { h.connect(*this, context); }
+	void connect(Hub<TOther> & h, TContext context) { if ( false == is_connected() ) h.connect(*this, context); }
 
 	template<class TOther>
-	void disconnect() { if( nullptr != _hub ) static_cast<Hub<TOther>*>(_hub)->disconnect(*this); }
+	void disconnect() { if( is_connected() ) static_cast<Hub<TOther>*>(_hub)->disconnect(*this); }
+
+	bool is_connected() const { return nullptr != _hub; }
 
 protected:
 	template<class TOther, typename TContext>
 	bool connection_cb(Hub<TOther> & h, TContext context, bool allowed)
 	{
-		if ( _hub == nullptr && self()->on_connection_attempt(h, context, allowed) && allowed )
+		if ( allowed )
 		{
 			_hub = &h;
-			return true;
+			return self()->on_connection_attempt(h, context, true);
 		}
 
+		self()->on_connection_attempt(h, context, false);
 		return false;
 	}
 
 	template<class TOther>
 	bool disconnection_cb(Hub<TOther> & h, bool allowed)
 	{
-		if ( _hub != nullptr && self()->on_disconnection_attempt(h, allowed) && allowed )
+		if ( allowed && &h == _hub )
 		{
+			self()->on_disconnection_attempt(h, true);
 			_hub = nullptr;
 			return true;
 		}
 
+		self()->on_disconnection_attempt(h, false);
 		return false;
 	}
 
@@ -145,12 +155,20 @@ public:
 
 	template<typename TGeneric>
 	void propagate_generic_event(const TGeneric & generic) const
+	{
+		TEvent const * event_p = nullptr;
+
 		try
 		{
-			const TEvent & event = self()->template cast<TEvent>(generic);
-			propagate_event(event);
+			event_p = &self()->template cast<TEvent,TGeneric>(generic);
 		}
-		catch(const std::bad_cast &) {}
+		catch( ::std::bad_cast const & ) {}
+
+		if ( nullptr != event_p )
+		{
+			propagate_event(*event_p);
+		}
+	}
 
 	template<typename TEventIterator>
 	void propagate_events(TEventIterator start, TEventIterator finish) const
@@ -171,14 +189,18 @@ public:
 
 		if (nullptr != listener)
 		{
-			on_registered_cb(*listener);
-			return initialize_listener(*listener);
+			register_listener(*listener);
+			return true;
 		}
 
-		return true;
+		return false;
 	}
 
-	bool initialize_listener(TListener & listener) { return listener.initialize(get_init_data(listener)); }
+	void register_listener(TListener & listener)
+	{
+		on_registered_cb( listener );
+		listener.initialize( get_init_data( listener ) );
+	}
 
 protected:
 	virtual void on_registered_cb(TListener & listener) = 0;
@@ -203,14 +225,8 @@ public:
 	template<typename TGeneric>
 	void propagate_generic_event(const TGeneric & generic) const
 	{
-		try
-		{
-			const TEvent & event = self()->template cast<TEvent,TGeneric>(generic);
-			TCurrent::propagate_event(event);
-		}
-		catch(const std::bad_cast &) {}
-
-		TNext::propagate_generic_event(generic);
+		TCurrent::propagate_generic_event( generic );
+		TNext::propagate_generic_event( generic );
 	}
 
 	template<typename TEventIterator>
@@ -231,15 +247,15 @@ public:
 	{
 		typename TCurrent::TListener* const listener =
 			dynamic_cast<typename TCurrent::TListener*>(&other);
+		bool at_least_one = false;
 
-		if (	nullptr != listener
-			&&	false == TCurrent::initialize_listener(*listener) // has side effect
-			)
+		if ( nullptr != listener )
 		{
-			return false;
+			at_least_one = true;
+			TCurrent::register_listener( *listener );
 		}
 
-		return TNext::on_listener_registered(other);
+		return at_least_one | TNext::on_listener_registered( other );
 	}
 
 private:
@@ -255,7 +271,7 @@ class Listener<TImplementations, TEvent>
 
 public:
 	virtual void handle_event(const TEvent & event) = 0;
-	virtual bool initialize(TInitData && event) = 0;
+	virtual void initialize(TInitData && event) = 0;
 };
 
 
@@ -343,19 +359,29 @@ public:
 
 	eInputStatus send_input(TMessage && message)
 	{
-		const eInputStatus status = bridge()->handle_input(static_cast<TInputer&>(*this), std::move(message));
+		eInputStatus status;
 
-		switch( status )
+		if ( is_connected() )
 		{
-		case eInputStatus::REJECTED:
+			status = bridge()->handle_input(static_cast<TInputer&>(*this), std::move(message));
+
+			switch( status )
+			{
+			case eInputStatus::REJECTED:
+				rejected_cb();
+				break;
+			case eInputStatus::DELAYED:
+				// do nothing, input bridge will have to call accepted_cb or rejected_cb
+				break;
+			case eInputStatus::ACCEPTED:
+				accepted_cb();
+				break;
+			}
+		}
+		else
+		{
+			status = eInputStatus::REJECTED;
 			rejected_cb();
-			break;
-		case eInputStatus::DELAYED:
-			// do nothing, input bridge will have to call accepted_cb or rejected_cb
-			break;
-		case eInputStatus::ACCEPTED:
-			accepted_cb();
-			break;
 		}
 
 		return status;

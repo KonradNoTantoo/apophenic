@@ -135,13 +135,13 @@ class ViewString
 	, public ap::mvc::Listener<Implementation2, std::string>
 {
 public:
-	virtual bool initialize(Implementation2::type_data<std::string>::init_data && data) override
+	virtual void initialize(Implementation2::type_data<std::string>::init_data && data) override
 	{
-		return mock_initialize(data);
+		mock_initialize(data);
 	}
 
 	MOCK_METHOD1(handle_event, void (const std::string & event));
-	MOCK_METHOD1(mock_initialize, bool (Implementation2::type_data<std::string>::init_data & data));
+	MOCK_METHOD1(mock_initialize, void (Implementation2::type_data<std::string>::init_data & data));
 };
 
 
@@ -150,13 +150,13 @@ class ViewInt
 	, public ap::mvc::Listener<Implementation2, integer>
 {
 public:
-	virtual bool initialize(Implementation2::type_data<integer>::init_data && data) override
+	virtual void initialize(Implementation2::type_data<integer>::init_data && data) override
 	{
-		return mock_initialize(data);
+		mock_initialize(data);
 	}
 
 	MOCK_METHOD1(handle_event, void (const integer & event));
-	MOCK_METHOD1(mock_initialize, bool (Implementation2::type_data<integer>::init_data & data));
+	MOCK_METHOD1(mock_initialize, void (Implementation2::type_data<integer>::init_data & data));
 };
 
 
@@ -165,21 +165,21 @@ class ViewAll
 	, public ap::mvc::Listener<Implementation2, integer, std::string>
 {
 public:
-	virtual bool initialize(Implementation2::type_data<integer>::init_data && data) override
+	virtual void initialize(Implementation2::type_data<integer>::init_data && data) override
 	{
-		return mock_string_initialize(data);
+		mock_string_initialize(data);
 	}
 
-	virtual bool initialize(Implementation2::type_data<std::string>::init_data && data) override
+	virtual void initialize(Implementation2::type_data<std::string>::init_data && data) override
 	{
-		return mock_int_initialize(data);
+		mock_int_initialize(data);
 	}
 
 	MOCK_METHOD1(handle_event, void (const integer & event));
-	MOCK_METHOD1(mock_string_initialize, bool (Implementation2::type_data<integer>::init_data & data));
+	MOCK_METHOD1(mock_string_initialize, void (Implementation2::type_data<integer>::init_data & data));
 
 	MOCK_METHOD1(handle_event, void (const std::string & event));
-	MOCK_METHOD1(mock_int_initialize, bool (Implementation2::type_data<std::string>::init_data & data));
+	MOCK_METHOD1(mock_int_initialize, void (Implementation2::type_data<std::string>::init_data & data));
 };
 
 
@@ -275,7 +275,9 @@ TEST(mvc, view_connect_and_disconnect)
 	EXPECT_CALL(vc, mock_get_init_data(Matcher<const ViewBridge::StringListener &>(Ref(v))))
 		.WillOnce(ReturnRef(empty_string_init_data));
 	EXPECT_CALL(v, mock_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
+	EXPECT_CALL(vc, on_registered_cb(An< ViewBridge::StringListener & >()))
+		.Times(1);
 
 	v.connect(vc, kCONNECTION_CONTEXT);
 
@@ -311,12 +313,18 @@ TEST(mvc, multiple_view_connect_and_disconnect)
 	EXPECT_CALL(vc, mock_get_init_data(Matcher<const ViewBridge::StringListener &>(Ref(vs))))
 		.WillOnce(ReturnRef(empty_string_init_data));
 	EXPECT_CALL(vs, mock_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
 
 	EXPECT_CALL(vc, mock_get_init_data(Matcher<const ViewBridge::IntListener &>(Ref(vi))))
 		.WillOnce(ReturnRef(int_init_data));
 	EXPECT_CALL(vi, mock_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
+
+	EXPECT_CALL(vc, on_registered_cb(An< ViewBridge::IntListener & >()))
+		.Times(1);
+
+	EXPECT_CALL(vc, on_registered_cb(An< ViewBridge::StringListener & >()))
+		.Times(1);
 
 	vs.connect(vc, kCONNECTION_CONTEXT);
 	vi.connect(vc, kCONNECTION_CONTEXT);
@@ -352,7 +360,7 @@ TEST(mvc, propagate_event)
 	EXPECT_CALL(vc, mock_get_init_data(Matcher<const ViewBridge::StringListener &>(Ref(v))))
 		.WillOnce(ReturnRef(empty_string_init_data));
 	EXPECT_CALL(v, mock_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
 
 	v.connect(vc, kCONNECTION_CONTEXT);
 
@@ -406,11 +414,11 @@ TEST(mvc, propagate_generic_event)
 	EXPECT_CALL(vc, mock_get_init_data(Matcher<const ViewBridge::IntListener &>(Ref(va))))
 		.WillOnce(ReturnRef(int_init_data));
 	EXPECT_CALL(vs, mock_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
 	EXPECT_CALL(va, mock_string_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
 	EXPECT_CALL(va, mock_int_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
 
 	vs.connect(vc, kCONNECTION_CONTEXT);
 	va.connect(vc, kCONNECTION_CONTEXT);
@@ -532,11 +540,11 @@ TEST(mvc, propagate_polymorphic_events)
 	EXPECT_CALL(vc, mock_get_init_data(Matcher<const ViewBridge::IntListener &>(Ref(va))))
 		.WillOnce(ReturnRef(int_init_data));
 	EXPECT_CALL(vs, mock_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
 	EXPECT_CALL(va, mock_string_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
 	EXPECT_CALL(va, mock_int_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
 
 	vs.connect(vc, kCONNECTION_CONTEXT);
 	va.connect(vc, kCONNECTION_CONTEXT);
@@ -593,11 +601,11 @@ TEST(mvc, propagate_multiple_events)
 	EXPECT_CALL(vc, mock_get_init_data(Matcher<const ViewBridge::IntListener &>(Ref(va))))
 		.WillOnce(ReturnRef(int_init_data));
 	EXPECT_CALL(vs, mock_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
 	EXPECT_CALL(va, mock_string_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
 	EXPECT_CALL(va, mock_int_initialize(_))
-		.WillOnce(Return(true));
+		.Times(1);
 
 	vs.connect(vc, kCONNECTION_CONTEXT);
 	va.connect(vc, kCONNECTION_CONTEXT);
@@ -864,10 +872,9 @@ class ViewString3
 	, public ap::mvc::Listener<Implementation3, IStringEvent>
 {
 public:
-	virtual bool initialize(Implementation3::type_data<IStringEvent>::init_data && data) override
+	virtual void initialize(Implementation3::type_data<IStringEvent>::init_data && data) override
 	{
 		_values = data;
-		return true;
 	}
 
 	MOCK_METHOD1(handle_event, void (const IStringEvent & event));
@@ -884,10 +891,9 @@ class ViewInt3
 	, public ap::mvc::Listener<Implementation3, IIntEvent>
 {
 public:
-	virtual bool initialize(Implementation3::type_data<IIntEvent>::init_data && data) override
+	virtual void initialize(Implementation3::type_data<IIntEvent>::init_data && data) override
 	{
 		_values = data;
-		return true;
 	}
 
 	MOCK_METHOD1(handle_event, void (const IIntEvent & event));
