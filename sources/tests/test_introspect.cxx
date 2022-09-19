@@ -1,20 +1,39 @@
 #include <iostream>
 #include <string>
-#include <vector>
+#include <deque>
 
 #include <gtest/gtest.h>
 
 #include "apophenic/Introspect.hxx"
 
 
-class Alpha;
-typedef ap::insp::Introspected<Alpha, unsigned[5], int, int *, const std::string, std::string, bool> AlphaParent;
+struct AlphaBase
+{
+	unsigned one[5];
+	int two;
+	int * three;
+	std::string const four;
+	std::string five;
+	bool six;
+};
 
-class Alpha : public AlphaParent
+
+class Alpha
+	: public AlphaBase
+	, public ::ap::insp::Introspector<
+			Alpha
+		,	::ap::insp::Member< &AlphaBase::one >
+		,	::ap::insp::Member< &AlphaBase::two >
+		,	::ap::insp::Member< &AlphaBase::three >
+		,	::ap::insp::Member< &AlphaBase::four >
+		,	::ap::insp::Member< &AlphaBase::five >
+		,	::ap::insp::Member< &AlphaBase::six >
+		>
 {
 public:
 	Alpha() = default;
-    Alpha(int b, int * c, std::string d, std::string e, bool f) : AlphaParent(b, c, d, e, f) {}
+	Alpha(int b, int * c, std::string d, std::string e, bool f)
+		: AlphaBase{ {}, b, c, d, e, f } {}
 };
 
 
@@ -23,12 +42,12 @@ namespace ap
 namespace insp
 {
 
-template<> const char * const NamedMember<Alpha,0,unsigned[5]>::kNAME = "First";
-template<> const char * const NamedMember<Alpha,1,int>::kNAME = "Second";
-template<> const char * const NamedMember<Alpha,2,int *>::kNAME = "Third";
-template<> const char * const NamedMember<Alpha,3,const std::string>::kNAME = "Fourth";
-template<> const char * const NamedMember<Alpha,4,std::string>::kNAME = "Fifth";
-template<> const char * const NamedMember<Alpha,5,bool>::kNAME = "Sixth";
+template<> const char * const Member< &AlphaBase::one >::kNAME = "First";
+template<> const char * const Member< &AlphaBase::two >::kNAME = "Second";
+template<> const char * const Member< &AlphaBase::three >::kNAME = "Third";
+template<> const char * const Member< &AlphaBase::four >::kNAME = "Fourth";
+template<> const char * const Member< &AlphaBase::five >::kNAME = "Fifth";
+template<> const char * const Member< &AlphaBase::six >::kNAME = "Sixth";
 
 }
 }
@@ -132,14 +151,63 @@ TEST(IntrospectFixture, errors)
 	int c = -37;
 	Alpha alpha(5, &c, "Hello", "Goodbye", true);
 
-	EXPECT_THROW(alpha.get<int>(6), ap::insp::BadRank);
-	EXPECT_THROW(alpha.get<int>("Fist"), ap::insp::BadName);
-	EXPECT_THROW(alpha.get<unsigned>("First"), ap::insp::BadType);
+	EXPECT_THROW(alpha.get<int>(6), ap::insp::EBadRank);
+	EXPECT_THROW(alpha.get<int>("Fist"), ap::insp::EBadName);
+	EXPECT_THROW(alpha.get<unsigned>("First"), ap::insp::EBadType);
+}
+
+
+using string_deck = ::std::deque< ::std::string >;
+
+
+template< class T >
+void process_member( string_deck & deck, T const & t ) {}
+
+
+template< unsigned RANK, class Implementor, typename Member, typename... Members >
+void process_member(
+		string_deck & deck
+	,	::ap::insp::RankedIntrospector< RANK, Implementor, Member, Members... > const & introspector
+	)
+{
+	deck.push_back( introspector.member_name( RANK ) );
+	process_member( deck, introspector.parent_introspector() );
+}
+
+
+template< unsigned RANK, class Implementor, typename Member >
+void process_member(
+		string_deck & deck
+	,	::ap::insp::RankedIntrospector< RANK, Implementor, Member > const & introspector
+	)
+{
+	deck.push_back( introspector.member_name( RANK ) );
+}
+
+
+TEST(IntrospectFixture, member_processing)
+{
+	Alpha alpha;
+	string_deck deck;
+	process_member( deck, alpha.introspector() );
+
+	ASSERT_EQ( 6u, deck.size() );
+
+	string_deck::const_iterator it = deck.begin();
+
+	EXPECT_EQ( "First", *it++ );
+	EXPECT_EQ( "Second", *it++ );
+	EXPECT_EQ( "Third", *it++ );
+	EXPECT_EQ( "Fourth", *it++ );
+	EXPECT_EQ( "Fifth", *it++ );
+	EXPECT_EQ( "Sixth", *it++ );
+
+	EXPECT_EQ( deck.end(), it );
 }
 
 
 int main(int argc, char **argv)
 {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+	::testing::InitGoogleTest(&argc, argv);
+	return RUN_ALL_TESTS();
 }
