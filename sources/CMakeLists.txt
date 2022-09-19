@@ -8,7 +8,7 @@ if(WITH_CONAN)
 	conan_basic_setup ()
 endif(WITH_CONAN)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 set(APOPHENIC_HEADERS
 	apophenic/MVC.hxx
