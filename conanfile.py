@@ -24,6 +24,9 @@ class ApophenicConan(ConanFile):
 	generators = "cmake"
 	no_copy_source = True
 
+	def validate(self):
+		tools.check_min_cppstd(self, "17")
+
 	def build_requirements(self):
 		if self.options.tests:
 			self.build_requires("gtest/1.11.0")
